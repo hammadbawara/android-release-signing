@@ -1,0 +1,14 @@
+## Android SDK Location (configured by Android Studio or SDK manager)
+## sdk.dir=/path/to/Android/Sdk
+
+## Android Release Signing Configuration
+## Required by 'com.hammadbawara.android.release-signing' convention plugin for release builds.
+##
+## Relative paths are resolved against the root project directory.
+## Absolute paths (Unix or Windows) are also supported.
+##
+## IMPORTANT: NEVER commit local.properties or your keystore file to version control.
+RELEASE_STORE_FILE=keystore/release.jks
+RELEASE_STORE_PASSWORD=example-store-password
+RELEASE_KEY_ALIAS=example-key-alias
+RELEASE_KEY_PASSWORD=example-key-password
