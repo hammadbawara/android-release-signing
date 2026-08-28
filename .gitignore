@@ -1,0 +1,30 @@
+# Gradle
+.gradle/
+build/
+**/build/
+
+# Android / Local Properties (CRITICAL: Never commit credentials)
+local.properties
+**/local.properties
+
+# Keystore files (CRITICAL: Never commit keystores)
+*.jks
+*.keystore
+*.p12
+*.bks
+**/*.jks
+**/*.keystore
+**/*.p12
+**/*.bks
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+.kotlin
+
