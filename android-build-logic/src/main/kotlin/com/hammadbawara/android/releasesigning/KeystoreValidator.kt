@@ -7,6 +7,7 @@ import java.security.KeyStore
 import java.security.KeyStoreException
 import java.security.NoSuchAlgorithmException
 import java.security.UnrecoverableKeyException
+import java.util.Base64
 
 /**
  * Validates Android release signing properties, keystore files, and credentials.
@@ -41,7 +42,35 @@ object KeystoreValidator {
     }
 
     /**
+     * Decodes Base64 encoded keystore content into [destinationFile].
+     * Never prints or leaks secret content in error messages.
+     */
+    fun decodeBase64Keystore(base64Content: String, destinationFile: File): File {
+        val sanitized = base64Content.filterNot { it.isWhitespace() }
+        val decodedBytes = try {
+            Base64.getDecoder().decode(sanitized)
+        } catch (_: IllegalArgumentException) {
+            throw GradleException(
+                buildString {
+                    appendLine()
+                    appendLine("Release signing configuration is invalid.")
+                    appendLine()
+                    appendLine("Failed to decode Base64 keystore data (${ReleaseSigningConstants.PROP_KEYSTORE_BASE64}).")
+                    appendLine("The provided string is not in valid Base64 encoded format.")
+                    appendLine()
+                    append("Do not commit keystores or raw secrets to version control.")
+                }
+            )
+        }
+
+        destinationFile.parentFile?.mkdirs()
+        destinationFile.writeBytes(decodedBytes)
+        return destinationFile
+    }
+
+    /**
      * Performs comprehensive validation of release signing parameters.
+     * Supports either raw file path or Base64 encoded keystore data.
      *
      * @return the resolved keystore [File] if valid.
      * @throws GradleException with actionable guidance if any validation fails.
@@ -52,11 +81,16 @@ object KeystoreValidator {
         storePassword: String?,
         keyAlias: String?,
         keyPassword: String?,
-        rootDir: File
+        rootDir: File,
+        storeFileBase64: String? = null,
+        targetKeystoreFile: File? = null
     ): File {
         val missingProperties = mutableListOf<String>()
 
-        if (rawStoreFile.isNullOrBlank()) {
+        val hasStoreFile = !rawStoreFile.isNullOrBlank()
+        val hasStoreBase64 = !storeFileBase64.isNullOrBlank()
+
+        if (!hasStoreFile && !hasStoreBase64) {
             missingProperties.add(ReleaseSigningConstants.PROP_STORE_FILE)
         }
         if (storePassword.isNullOrBlank()) {
@@ -81,8 +115,19 @@ object KeystoreValidator {
             throw GradleException(errorMessage)
         }
 
-        // Validate keystore file existence
-        val resolvedKeystoreFile = resolveKeystoreFile(rawStoreFile!!, rootDir)
+        // Determine and resolve keystore file
+        val resolvedKeystoreFile: File = when {
+            hasStoreBase64 -> {
+                val dest = targetKeystoreFile
+                    ?: if (hasStoreFile) resolveKeystoreFile(rawStoreFile!!, rootDir)
+                    else File(rootDir, "build/${ReleaseSigningConstants.INTERMEDIATE_KEYSTORE_PATH}").normalize()
+                decodeBase64Keystore(storeFileBase64!!, dest)
+            }
+            else -> {
+                resolveKeystoreFile(rawStoreFile!!, rootDir)
+            }
+        }
+
         if (!resolvedKeystoreFile.exists() || !resolvedKeystoreFile.isFile) {
             throw GradleException(buildKeystoreNotFoundErrorMessage(resolvedKeystoreFile))
         }
@@ -198,7 +243,8 @@ object KeystoreValidator {
         appendLine(if (localPropertiesExists) "Add them to:" else "Create local.properties at:")
         appendLine("  $localPropertiesPath")
         appendLine()
-        appendLine("Example:")
+        appendLine()
+        appendLine("Example for local development:")
         if (missingProperties.contains(ReleaseSigningConstants.PROP_STORE_FILE)) {
             appendLine("  ${ReleaseSigningConstants.PROP_STORE_FILE}=/path/to/keystore.jks")
         }
@@ -210,6 +256,21 @@ object KeystoreValidator {
         }
         if (missingProperties.contains(ReleaseSigningConstants.PROP_KEY_PASSWORD)) {
             appendLine("  ${ReleaseSigningConstants.PROP_KEY_PASSWORD}=your-key-password")
+        }
+        appendLine()
+        appendLine("Or for CI/CD (GitHub Actions):")
+        appendLine("  Set as environment variables (env:) or Gradle project properties (-P...):")
+        if (missingProperties.contains(ReleaseSigningConstants.PROP_STORE_FILE)) {
+            appendLine("    RELEASE_KEYSTORE_BASE64 (Base64 encoded keystore) or RELEASE_STORE_FILE")
+        }
+        if (missingProperties.contains(ReleaseSigningConstants.PROP_STORE_PASSWORD)) {
+            appendLine("    RELEASE_STORE_PASSWORD=your-store-password")
+        }
+        if (missingProperties.contains(ReleaseSigningConstants.PROP_KEY_ALIAS)) {
+            appendLine("    RELEASE_KEY_ALIAS=your-key-alias")
+        }
+        if (missingProperties.contains(ReleaseSigningConstants.PROP_KEY_PASSWORD)) {
+            appendLine("    RELEASE_KEY_PASSWORD=your-key-password")
         }
         appendLine()
         append("Do not commit local.properties or your keystore to version control.")

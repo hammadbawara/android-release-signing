@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.api.io.TempDir
 import java.io.File
+import java.util.Base64
 
 class KeystoreValidatorTest {
 
@@ -270,5 +271,62 @@ class KeystoreValidatorTest {
         assertTrue(message.contains("Key password appears to be incorrect"))
         // Password must NEVER appear in exception message
         assertFalse(message.contains(wrongKeyPassword))
+    }
+
+    @Test
+    fun `validate succeeds with Base64 keystore when rawStoreFile is null`() {
+        val base64Keystore = Base64.getEncoder().encodeToString(validKeystoreFile.readBytes())
+        val targetFile = File(tempDir, "decoded-release.keystore")
+
+        val resolved = KeystoreValidator.validate(
+            localPropertiesFile = null,
+            rawStoreFile = null,
+            storePassword = validStorePassword,
+            keyAlias = validKeyAlias,
+            keyPassword = validKeyPassword,
+            rootDir = tempDir,
+            storeFileBase64 = base64Keystore,
+            targetKeystoreFile = targetFile
+        )
+
+        assertNotNull(resolved)
+        assertTrue(resolved.exists())
+        assertEquals(targetFile.normalize(), resolved)
+    }
+
+    @Test
+    fun `validate fails with malformed Base64 keystore without logging secret`() {
+        val malformedBase64 = "!!invalid_base64_secret_content!!"
+        val targetFile = File(tempDir, "failed-decode.keystore")
+
+        val exception = assertThrows<GradleException> {
+            KeystoreValidator.validate(
+                localPropertiesFile = null,
+                rawStoreFile = null,
+                storePassword = validStorePassword,
+                keyAlias = validKeyAlias,
+                keyPassword = validKeyPassword,
+                rootDir = tempDir,
+                storeFileBase64 = malformedBase64,
+                targetKeystoreFile = targetFile
+            )
+        }
+
+        val message = exception.message.orEmpty()
+        assertTrue(message.contains("Failed to decode Base64 keystore data"))
+        assertTrue(message.contains("Do not commit keystores or raw secrets to version control."))
+        assertFalse(message.contains(malformedBase64))
+    }
+
+    @Test
+    fun `decodeBase64Keystore handles whitespace and newlines properly`() {
+        val rawBytes = validKeystoreFile.readBytes()
+        val base64String = Base64.getEncoder().encodeToString(rawBytes)
+        val formattedBase64 = "\n  " + base64String.chunked(32).joinToString("\r\n  ") + "\n\n"
+        val destination = File(tempDir, "whitespace-test.keystore")
+
+        val decoded = KeystoreValidator.decodeBase64Keystore(formattedBase64, destination)
+        assertTrue(decoded.exists())
+        assertEquals(rawBytes.size, decoded.readBytes().size)
     }
 }

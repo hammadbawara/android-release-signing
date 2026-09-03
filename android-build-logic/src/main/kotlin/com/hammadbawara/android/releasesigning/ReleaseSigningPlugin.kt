@@ -31,15 +31,43 @@ class ReleaseSigningPlugin : Plugin<Project> {
 
         val properties = loadLocalProperties(localPropsFile)
 
-        val rawStoreFile = properties.getProperty(ReleaseSigningConstants.PROP_STORE_FILE)?.trim()
-        val storePassword = properties.getProperty(ReleaseSigningConstants.PROP_STORE_PASSWORD)?.trim()
-        val keyAlias = properties.getProperty(ReleaseSigningConstants.PROP_KEY_ALIAS)?.trim()
-        val keyPassword = properties.getProperty(ReleaseSigningConstants.PROP_KEY_PASSWORD)?.trim()
+        val rawStoreFile = resolveProperty(ReleaseSigningConstants.PROP_STORE_FILE, project, properties)
+        val storeFileBase64 = resolveProperty(
+            ReleaseSigningConstants.PROP_KEYSTORE_BASE64,
+            project,
+            properties,
+            fallbackNames = listOf(ReleaseSigningConstants.PROP_STORE_FILE_BASE64)
+        )
+        val storePassword = resolveProperty(ReleaseSigningConstants.PROP_STORE_PASSWORD, project, properties)
+        val keyAlias = resolveProperty(ReleaseSigningConstants.PROP_KEY_ALIAS, project, properties)
+        val keyPassword = resolveProperty(ReleaseSigningConstants.PROP_KEY_PASSWORD, project, properties)
 
-        val resolvedStoreFile = if (!rawStoreFile.isNullOrBlank()) {
-            KeystoreValidator.resolveKeystoreFile(rawStoreFile, project.rootDir)
-        } else {
-            null
+        val intermediateKeystoreFile = File(
+            project.rootDir,
+            "build/${ReleaseSigningConstants.INTERMEDIATE_KEYSTORE_PATH}"
+        ).normalize()
+
+        val resolvedStoreFile = when {
+            !rawStoreFile.isNullOrBlank() -> {
+                val resolved = KeystoreValidator.resolveKeystoreFile(rawStoreFile, project.rootDir)
+                if (!storeFileBase64.isNullOrBlank()) {
+                    try {
+                        KeystoreValidator.decodeBase64Keystore(storeFileBase64, resolved)
+                    } catch (_: Exception) {
+                    }
+                }
+                resolved
+            }
+            !storeFileBase64.isNullOrBlank() -> {
+                try {
+                    KeystoreValidator.decodeBase64Keystore(storeFileBase64, intermediateKeystoreFile)
+                } catch (_: Exception) {
+                }
+                intermediateKeystoreFile
+            }
+            else -> {
+                null
+            }
         }
 
         val androidExtension = project.extensions.getByType(ApplicationExtension::class.java)
@@ -85,6 +113,12 @@ class ReleaseSigningPlugin : Plugin<Project> {
                 if (rawStoreFile != null) {
                     task.storeFilePath.set(rawStoreFile)
                 }
+                if (storeFileBase64 != null) {
+                    task.storeFileBase64.set(storeFileBase64)
+                    task.targetKeystorePath.set(
+                        resolvedStoreFile?.absolutePath ?: intermediateKeystoreFile.absolutePath
+                    )
+                }
                 if (storePassword != null) {
                     task.storePassword.set(storePassword)
                 }
@@ -110,6 +144,30 @@ class ReleaseSigningPlugin : Plugin<Project> {
                 mustRunAfter(validateTaskProvider)
             }
         }
+    }
+
+    private fun resolveProperty(
+        name: String,
+        project: Project,
+        localProperties: Properties,
+        fallbackNames: List<String> = emptyList()
+    ): String? {
+        val allNames = listOf(name) + fallbackNames
+        for (propName in allNames) {
+            val projectProp = project.findProperty(propName)?.toString()?.trim()
+            if (!projectProp.isNullOrBlank()) {
+                return projectProp
+            }
+            val envVal = System.getenv(propName)?.trim()
+            if (!envVal.isNullOrBlank()) {
+                return envVal
+            }
+            val localVal = localProperties.getProperty(propName)?.trim()
+            if (!localVal.isNullOrBlank()) {
+                return localVal
+            }
+        }
+        return null
     }
 
     companion object {

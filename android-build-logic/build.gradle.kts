@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "io.github.hammadbawara"
-version = providers.gradleProperty("version").getOrElse("1.0.0")
+version = providers.gradleProperty("version").getOrElse("1.1.0")
 
 java {
     withSourcesJar()

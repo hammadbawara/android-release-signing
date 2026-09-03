@@ -9,6 +9,7 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.io.File
+import java.util.Base64
 
 class ReleaseSigningPluginFunctionalTest {
 
@@ -277,5 +278,65 @@ class ReleaseSigningPluginFunctionalTest {
 
         val result = runner(":app:assembleRelease").build()
         assertEquals(TaskOutcome.SUCCESS, result.task(":app:assembleRelease")?.outcome)
+    }
+
+    @Test
+    fun `test 11 release build succeeds using Gradle project properties without local properties`() {
+        File(testProjectDir, "local.properties").delete()
+        val keystoreFile = File(testProjectDir, "keystore/ci-release.jks")
+        createKeystore(keystoreFile)
+
+        val result = runner(
+            ":app:assembleRelease",
+            "-PRELEASE_STORE_FILE=keystore/ci-release.jks",
+            "-PRELEASE_STORE_PASSWORD=$validStorePassword",
+            "-PRELEASE_KEY_ALIAS=$validKeyAlias",
+            "-PRELEASE_KEY_PASSWORD=$validKeyPassword"
+        ).build()
+
+        assertEquals(TaskOutcome.SUCCESS, result.task(":app:assembleRelease")?.outcome)
+    }
+
+    @Test
+    fun `test 12 release build succeeds using Base64 keystore property without local properties or raw jks file`() {
+        File(testProjectDir, "local.properties").delete()
+        val tempKeystore = File(testProjectDir, "source-keystore.jks")
+        createKeystore(tempKeystore)
+        val base64Content = Base64.getEncoder().encodeToString(tempKeystore.readBytes())
+        tempKeystore.delete()
+
+        val result = runner(
+            ":app:assembleRelease",
+            "-PRELEASE_KEYSTORE_BASE64=$base64Content",
+            "-PRELEASE_STORE_PASSWORD=$validStorePassword",
+            "-PRELEASE_KEY_ALIAS=$validKeyAlias",
+            "-PRELEASE_KEY_PASSWORD=$validKeyPassword"
+        ).build()
+
+        assertEquals(TaskOutcome.SUCCESS, result.task(":app:assembleRelease")?.outcome)
+        val intermediateKeystore = File(testProjectDir, "build/intermediates/release-signing/release.keystore")
+        assertTrue(intermediateKeystore.exists())
+    }
+
+    @Test
+    fun `test 13 clean assembleRelease succeeds with Base64 keystore regenerating intermediate file`() {
+        File(testProjectDir, "local.properties").delete()
+        val tempKeystore = File(testProjectDir, "source-keystore.jks")
+        createKeystore(tempKeystore)
+        val base64Content = Base64.getEncoder().encodeToString(tempKeystore.readBytes())
+        tempKeystore.delete()
+
+        val result = runner(
+            "clean",
+            ":app:assembleRelease",
+            "-PRELEASE_KEYSTORE_BASE64=$base64Content",
+            "-PRELEASE_STORE_PASSWORD=$validStorePassword",
+            "-PRELEASE_KEY_ALIAS=$validKeyAlias",
+            "-PRELEASE_KEY_PASSWORD=$validKeyPassword"
+        ).build()
+
+        assertEquals(TaskOutcome.SUCCESS, result.task(":app:assembleRelease")?.outcome)
+        val intermediateKeystore = File(testProjectDir, "build/intermediates/release-signing/release.keystore")
+        assertTrue(intermediateKeystore.exists())
     }
 }

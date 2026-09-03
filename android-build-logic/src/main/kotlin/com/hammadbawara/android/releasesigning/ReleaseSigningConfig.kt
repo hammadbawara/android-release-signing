@@ -7,6 +7,8 @@ import java.io.File
  */
 object ReleaseSigningConstants {
     const val PROP_STORE_FILE = "RELEASE_STORE_FILE"
+    const val PROP_KEYSTORE_BASE64 = "RELEASE_KEYSTORE_BASE64"
+    const val PROP_STORE_FILE_BASE64 = "RELEASE_STORE_FILE_BASE64"
     const val PROP_STORE_PASSWORD = "RELEASE_STORE_PASSWORD"
     const val PROP_KEY_ALIAS = "RELEASE_KEY_ALIAS"
     const val PROP_KEY_PASSWORD = "RELEASE_KEY_PASSWORD"
@@ -20,6 +22,7 @@ object ReleaseSigningConstants {
 
     const val SIGNING_CONFIG_NAME = "release"
     const val LOCAL_PROPERTIES_FILE = "local.properties"
+    const val INTERMEDIATE_KEYSTORE_PATH = "intermediates/release-signing/release.keystore"
 }
 
 /**

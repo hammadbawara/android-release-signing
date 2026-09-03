@@ -19,6 +19,14 @@ abstract class ValidateReleaseSigningTask : DefaultTask() {
 
     @get:Input
     @get:Optional
+    abstract val storeFileBase64: Property<String>
+
+    @get:Input
+    @get:Optional
+    abstract val targetKeystorePath: Property<String>
+
+    @get:Input
+    @get:Optional
     abstract val storePassword: Property<String>
 
     @get:Input
@@ -48,6 +56,7 @@ abstract class ValidateReleaseSigningTask : DefaultTask() {
     fun validate() {
         val rootDir = File(rootDirPath.get())
         val localPropsFile = localPropertiesPath.orNull?.let { File(it) }
+        val targetFile = targetKeystorePath.orNull?.let { File(it) }
 
         KeystoreValidator.validate(
             localPropertiesFile = localPropsFile,
@@ -55,7 +64,9 @@ abstract class ValidateReleaseSigningTask : DefaultTask() {
             storePassword = storePassword.orNull,
             keyAlias = keyAlias.orNull,
             keyPassword = keyPassword.orNull,
-            rootDir = rootDir
+            rootDir = rootDir,
+            storeFileBase64 = storeFileBase64.orNull,
+            targetKeystoreFile = targetFile
         )
 
         logger.lifecycle("Release signing configuration validated successfully for variant '${variantName.get()}'.")

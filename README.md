@@ -3,63 +3,26 @@
 [![Maven Central](https://img.shields.io/maven-central/v/io.github.hammadbawara.android.release-signing/release-signing-plugin?style=flat-square&color=blue)](https://central.sonatype.com/artifact/io.github.hammadbawara.android.release-signing/release-signing-plugin)
 [![License](https://img.shields.io/badge/License-Apache%202.0-green.svg?style=flat-square)](LICENSE)
 
-A lightweight Gradle convention plugin for Android that eliminates boilerplate signing configurations. It automatically wires up release signing from credentials in your `local.properties` with zero friction for debug builds.
+A lightweight Gradle convention plugin for Android that eliminates signing boilerplate. Automatically wires up and validates release signing for both **local development** and **CI/CD (GitHub Actions)** with zero friction for debug builds.
 
 ---
 
-## ⚡ Why Use This?
+## ⚡ Features
 
-- 🔒 **Secure by Default** — Keystore paths and passwords stay in `local.properties` (never committed to git).
-- 🚀 **Zero Debug Friction** — Debug builds, IDE sync, and CI unit tests run without requiring any keystores or credentials.
-- ⏱️ **Lazy Release Validation** — Validates keystore paths, aliases, and credentials *only* when running release tasks (`assembleRelease`, `bundleRelease`).
-- 🛡️ **Cross-Platform** — Seamlessly resolves relative keystore paths across macOS, Linux, and Windows.
-
----
-
-## 🚀 How to Use
-
-### 1. Add Credentials to `local.properties`
-
-Add the following keys to your project's root `local.properties` (make sure `local.properties` is in `.gitignore`):
-
-```properties
-RELEASE_STORE_FILE=keystore/release.jks
-RELEASE_STORE_PASSWORD=your-keystore-password
-RELEASE_KEY_ALIAS=your-key-alias
-RELEASE_KEY_PASSWORD=your-key-password
-```
-
-| Property | Required | Description | Example |
-| :--- | :---: | :--- | :--- |
-| `RELEASE_STORE_FILE` | Yes | Path to keystore file (relative to project root or absolute) | `keystore/release.jks` |
-| `RELEASE_STORE_PASSWORD` | Yes | Keystore access password | `myStorePass123` |
-| `RELEASE_KEY_ALIAS` | Yes | Release key alias | `my-release-key` |
-| `RELEASE_KEY_PASSWORD` | Yes | Key password | `myKeyPass123` |
-
-### 2. Build Your App
-
-- **Debug Builds** (no keystore needed):
-  ```bash
-  ./gradlew assembleDebug
-  ```
-
-- **Release Builds** (automatically signed & validated):
-  ```bash
-  ./gradlew assembleRelease
-  # or
-  ./gradlew bundleRelease
-  ```
+- 🔒 **Secure by Default** — Keystores and passwords are never committed to version control.
+- 🚀 **Zero Debug Friction** — IDE sync, debug builds, and unit tests run without any keystore configuration.
+- ⏱️ **Lazy Release Validation** — Validates credentials *only* when running release tasks (`assembleRelease`, `bundleRelease`).
+- 🤖 **Native CI/CD & GitHub Actions** — Resolves environment variables and automatically decodes Base64 keystores on-the-fly.
+- 🛡️ **Cross-Platform** — Works seamlessly across Linux, macOS, and Windows.
 
 ---
 
 ## 📦 Installation
 
-### Step 1: Add Maven Central Repository
-
-Ensure `mavenCentral()` is present in your root `settings.gradle.kts`:
+### 1. Add Maven Central
+Ensure `mavenCentral()` is in your root `settings.gradle.kts`:
 
 ```kotlin
-// settings.gradle.kts
 pluginManagement {
     repositories {
         google()
@@ -69,17 +32,17 @@ pluginManagement {
 }
 ```
 
-### Step 2: Apply the Plugin
+### 2. Apply the Plugin
 
 #### Using Version Catalog (Recommended)
 
 In `gradle/libs.versions.toml`:
 ```toml
 [plugins]
-android-release-signing = { id = "io.github.hammadbawara.android.release-signing", version = "1.0.0" }
+android-release-signing = { id = "io.github.hammadbawara.android.release-signing", version = "1.1.0" }
 ```
 
-In your app module `app/build.gradle.kts`:
+In your application module `app/build.gradle.kts`:
 ```kotlin
 plugins {
     alias(libs.plugins.android.application)
@@ -94,10 +57,151 @@ plugins {
 // app/build.gradle.kts
 plugins {
     alias(libs.plugins.android.application)
-    id("io.github.hammadbawara.android.release-signing") version "1.0.0"
+    id("io.github.hammadbawara.android.release-signing") version "1.1.0"
 }
 ```
 </details>
+
+---
+
+## 🛠️ Configuration
+
+Choose the configuration that matches your environment:
+
+<details>
+<summary><b>💻 Local Development Setup (Click to expand)</b></summary>
+
+<br>
+
+Add signing credentials to your project's root `local.properties` (make sure `local.properties` is in `.gitignore`):
+
+```properties
+RELEASE_STORE_FILE=keystore/release.jks
+RELEASE_STORE_PASSWORD=your-keystore-password
+RELEASE_KEY_ALIAS=your-key-alias
+RELEASE_KEY_PASSWORD=your-key-password
+```
+
+#### Property Reference
+
+| Property | Required | Description | Example |
+| :--- | :---: | :--- | :--- |
+| `RELEASE_STORE_FILE` | Yes | Path to keystore file (relative to project root or absolute) | `keystore/release.jks` |
+| `RELEASE_STORE_PASSWORD` | Yes | Keystore access password | `myStorePass123` |
+| `RELEASE_KEY_ALIAS` | Yes | Release key alias | `my-release-key` |
+| `RELEASE_KEY_PASSWORD` | Yes | Key password | `myKeyPass123` |
+
+</details>
+
+<details>
+<summary><b>🤖 GitHub Actions & CI/CD Setup (Click to expand)</b></summary>
+
+<br>
+
+The plugin natively supports environment variables and automatically decodes Base64 keystores on-the-fly into an isolated intermediate file. **No custom bash decoding scripts or `local.properties` files required!**
+
+#### 1. Base64 Encode Your Keystore
+Run the command for your operating system to get the Base64 string of your keystore:
+
+- **Linux**:
+  ```bash
+  base64 -w 0 release.jks > keystore_base64.txt
+  ```
+- **macOS**:
+  ```bash
+  base64 -i release.jks -o keystore_base64.txt
+  ```
+- **Windows (PowerShell)**:
+  ```powershell
+  [Convert]::ToBase64String([IO.File]::ReadAllBytes("release.jks")) | Set-Clipboard
+  ```
+
+#### 2. Add GitHub Repository Secrets
+In your GitHub repository: **Settings** $\rightarrow$ **Secrets and variables** $\rightarrow$ **Actions**:
+
+| Secret Name | Description |
+| :--- | :--- |
+| `RELEASE_KEYSTORE_BASE64` | The complete Base64 keystore string |
+| `RELEASE_STORE_PASSWORD` | Keystore password |
+| `RELEASE_KEY_ALIAS` | Key alias |
+| `RELEASE_KEY_PASSWORD` | Key password |
+
+#### 3. GitHub Actions Workflow
+Add `.github/workflows/release.yml` to your repository:
+
+```yaml
+name: Build & Sign Release
+
+on:
+  push:
+    tags:
+      - 'v*' # Trigger on version tags (e.g., v1.0.0)
+  workflow_dispatch: # Allows manual trigger from GitHub UI
+
+jobs:
+  release:
+    name: Build Signed Artifacts
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Make gradlew executable
+        run: chmod +x gradlew
+
+      # The plugin reads secrets directly from env and decodes the Base64 keystore automatically
+      - name: Build Signed Release APK & App Bundle
+        env:
+          RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+          RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: ./gradlew assembleRelease bundleRelease --no-daemon
+
+      - name: Upload Signed APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-apk
+          path: '**/build/outputs/apk/release/*.apk'
+          if-no-files-found: error
+
+      - name: Upload Signed AAB
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-aab
+          path: '**/build/outputs/bundle/release/*.aab'
+          if-no-files-found: error
+```
+
+> **Credential Resolution Priority:** Gradle Project Properties (`-P...`) $\rightarrow$ Environment Variables (`env:`) $\rightarrow$ `local.properties`.
+
+</details>
+
+---
+
+## 🏃 Building Your App
+
+- **Debug Builds** (zero signing configuration required):
+  ```bash
+  ./gradlew assembleDebug
+  ```
+
+- **Release Builds** (automatically signed & validated):
+  ```bash
+  ./gradlew assembleRelease
+  # or
+  ./gradlew bundleRelease
+  ```
 
 ---
 
