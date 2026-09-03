@@ -37,7 +37,7 @@ jobs:
       - name: Validate Local Publication
         run: ./gradlew :android-build-logic:publishToMavenLocal --no-daemon
 
-      - name: Verify Sample App Release Signing
+      - name: Verify Sample App Release Build
         env:
           RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
           RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
@@ -45,7 +45,9 @@ jobs:
           RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
         run: |
           if [ -z "$RELEASE_KEYSTORE_BASE64" ]; then
-            echo "RELEASE_KEYSTORE_BASE64 secret is not configured; skipping sample release signing."
+            echo "RELEASE_KEYSTORE_BASE64 secret is not configured; verifying unsigned release build."
+            ./gradlew -p my-app assembleRelease -PRELEASE_SIGNING_ENABLED=false --no-daemon
           else
+            echo "Verifying signed release build."
             ./gradlew -p my-app assembleRelease --no-daemon
           fi

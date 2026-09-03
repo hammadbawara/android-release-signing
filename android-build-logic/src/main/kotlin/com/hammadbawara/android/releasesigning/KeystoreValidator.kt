@@ -69,6 +69,24 @@ object KeystoreValidator {
     }
 
     /**
+     * Checks if any release signing property has been configured.
+     * Useful for distinguishing between completely unconfigured builds vs partially configured builds.
+     */
+    fun hasAnyCredentials(
+        rawStoreFile: String?,
+        storeFileBase64: String?,
+        storePassword: String?,
+        keyAlias: String?,
+        keyPassword: String?
+    ): Boolean {
+        return !rawStoreFile.isNullOrBlank() ||
+            !storeFileBase64.isNullOrBlank() ||
+            !storePassword.isNullOrBlank() ||
+            !keyAlias.isNullOrBlank() ||
+            !keyPassword.isNullOrBlank()
+    }
+
+    /**
      * Performs comprehensive validation of release signing parameters.
      * Supports either raw file path or Base64 encoded keystore data.
      *
@@ -272,6 +290,11 @@ object KeystoreValidator {
         if (missingProperties.contains(ReleaseSigningConstants.PROP_KEY_PASSWORD)) {
             appendLine("    RELEASE_KEY_PASSWORD=your-key-password")
         }
+        appendLine()
+        appendLine("For F-Droid or unsigned CI builds, disable signing or make it optional:")
+        appendLine("  - CLI property: ./gradlew assembleRelease -P${ReleaseSigningConstants.PROP_SIGNING_ENABLED}=false")
+        appendLine("  - Or allow unsigned builds: ./gradlew assembleRelease -P${ReleaseSigningConstants.PROP_SIGNING_REQUIRED}=false")
+        appendLine("  - Or in build.gradle.kts: releaseSigning { required.set(false) }")
         appendLine()
         append("Do not commit local.properties or your keystore to version control.")
     }

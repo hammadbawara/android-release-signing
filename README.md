@@ -13,6 +13,7 @@ A lightweight Gradle convention plugin for Android that eliminates signing boile
 - 🚀 **Zero Debug Friction** — IDE sync, debug builds, and unit tests run without any keystore configuration.
 - ⏱️ **Lazy Release Validation** — Validates credentials *only* when running release tasks (`assembleRelease`, `bundleRelease`).
 - 🤖 **Native CI/CD & GitHub Actions** — Resolves environment variables and automatically decodes Base64 keystores on-the-fly.
+- 📦 **F-Droid & CI Unsigned Builds** — Build unsigned release APKs seamlessly for F-Droid packaging or pull request verification without secrets.
 - 🛡️ **Cross-Platform** — Works seamlessly across Linux, macOS, and Windows.
 
 ---
@@ -187,6 +188,89 @@ jobs:
 
 </details>
 
+<details>
+<summary><b>📦 F-Droid & Unsigned CI Builds Setup (Click to expand)</b></summary>
+
+<br>
+
+In **F-Droid** and **CI environments** (such as Pull Request builds from external contributors where repository secrets are unavailable), you may want release tasks (`assembleRelease`, `bundleRelease`) to produce unsigned artifacts instead of failing fast.
+
+The plugin provides multiple ways to support unsigned builds:
+
+#### Option 1: Command-Line Flag or Environment Variable (Zero Code Changes)
+Disable release signing on-demand from the command line or CI pipeline:
+
+```bash
+# Explicitly disable release signing
+./gradlew assembleRelease -PRELEASE_SIGNING_ENABLED=false
+
+# Or use common alias flags
+./gradlew assembleRelease -PdisableReleaseSigning
+# or
+./gradlew assembleRelease -PunsignedRelease=true
+```
+
+Or set environment variables in your build container:
+```bash
+export RELEASE_SIGNING_ENABLED=false
+# or
+export DISABLE_RELEASE_SIGNING=true
+```
+
+#### Option 2: Optional Signing for F-Droid (`required = false`)
+When release signing is optional:
+- If credentials **are provided**, the build is signed and validated normally.
+- If credentials **are absent**, the build produces an unsigned release artifact (`app-release-unsigned.apk`) without failing.
+- If credentials **are partially configured or corrupted**, validation still fails fast to alert you of configuration mistakes.
+
+```bash
+# Allow unsigned release when credentials are not configured
+./gradlew assembleRelease -PRELEASE_SIGNING_REQUIRED=false
+
+# Or pass F-Droid flag / environment variable
+./gradlew assembleRelease -Pfdroid
+```
+
+In F-Droid metadata (`.fdroid.yml` or `metadata/package.yml`):
+```yaml
+Builds:
+  - versionName: 1.0.0
+    versionCode: 1
+    commit: v1.0.0
+    gradle:
+      - yes
+    gradleflags:
+      - -PRELEASE_SIGNING_ENABLED=false
+```
+
+#### Option 3: Configure via Kotlin DSL in `build.gradle.kts`
+You can configure signing behavior directly in your application module:
+
+```kotlin
+// app/build.gradle.kts
+releaseSigning {
+    // Completely bypass release signing
+    enabled.set(false)
+
+    // OR: Allow unsigned builds whenever credentials are not configured
+    // (Ideal for open-source repositories and F-Droid)
+    required.set(false)
+}
+```
+
+#### Configuration Flags Reference
+
+| Property / Flag | Type | Description |
+| :--- | :---: | :--- |
+| `RELEASE_SIGNING_ENABLED` | Boolean | Enable or disable release signing (`true`/`false`). When `false`, produces unsigned release APKs. |
+| `-PdisableReleaseSigning` | Flag | Shorthand to disable release signing. |
+| `-PunsignedRelease` | Flag | Shorthand to disable release signing. |
+| `RELEASE_SIGNING_REQUIRED` | Boolean | Whether signing credentials are required (`true`/`false`). When `false` and credentials are missing, builds unsigned release. |
+| `-PreleaseSigningOptional=true` | Flag | Shorthand to make signing optional when credentials are not provided. |
+| `-Pfdroid` / `FDROID=true` | Flag / Env | Shorthand for F-Droid environments to allow unsigned builds. |
+
+</details>
+
 ---
 
 ## 🏃 Building Your App
@@ -196,11 +280,18 @@ jobs:
   ./gradlew assembleDebug
   ```
 
-- **Release Builds** (automatically signed & validated):
+- **Release Builds** (automatically signed & validated when credentials configured):
   ```bash
   ./gradlew assembleRelease
   # or
   ./gradlew bundleRelease
+  ```
+
+- **Unsigned Release Builds** (for F-Droid or CI PR checks):
+  ```bash
+  ./gradlew assembleRelease -PRELEASE_SIGNING_ENABLED=false
+  # or
+  ./gradlew assembleRelease -PRELEASE_SIGNING_REQUIRED=false
   ```
 
 ---
@@ -208,7 +299,7 @@ jobs:
 ## 📄 License
 
 ```
-Copyright 2026 Hammad Bawara
+Copyright 2026 Hammad Zafar Bawara
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.

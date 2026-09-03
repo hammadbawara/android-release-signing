@@ -339,4 +339,165 @@ class ReleaseSigningPluginFunctionalTest {
         val intermediateKeystore = File(testProjectDir, "build/intermediates/release-signing/release.keystore")
         assertTrue(intermediateKeystore.exists())
     }
+
+    @Test
+    fun `test 14 release build succeeds unsigned with RELEASE_SIGNING_ENABLED false without local properties`() {
+        File(testProjectDir, "local.properties").delete()
+
+        val result = runner(
+            ":app:assembleRelease",
+            "-PRELEASE_SIGNING_ENABLED=false"
+        ).build()
+
+        assertEquals(TaskOutcome.SUCCESS, result.task(":app:assembleRelease")?.outcome)
+        assertTrue(result.output.contains("[release-signing] Release signing is disabled"))
+    }
+
+    @Test
+    fun `test 15 release build succeeds unsigned with disableReleaseSigning property`() {
+        File(testProjectDir, "local.properties").delete()
+
+        val result = runner(
+            ":app:assembleRelease",
+            "-PdisableReleaseSigning"
+        ).build()
+
+        assertEquals(TaskOutcome.SUCCESS, result.task(":app:assembleRelease")?.outcome)
+        assertTrue(result.output.contains("[release-signing] Release signing is disabled"))
+    }
+
+    @Test
+    fun `test 16 release build succeeds unsigned with unsignedRelease property`() {
+        File(testProjectDir, "local.properties").delete()
+
+        val result = runner(
+            ":app:assembleRelease",
+            "-PunsignedRelease=true"
+        ).build()
+
+        assertEquals(TaskOutcome.SUCCESS, result.task(":app:assembleRelease")?.outcome)
+        assertTrue(result.output.contains("[release-signing] Release signing is disabled"))
+    }
+
+    @Test
+    fun `test 17 release build succeeds unsigned with RELEASE_SIGNING_REQUIRED false without local properties`() {
+        File(testProjectDir, "local.properties").delete()
+
+        val result = runner(
+            ":app:assembleRelease",
+            "-PRELEASE_SIGNING_REQUIRED=false"
+        ).build()
+
+        assertEquals(TaskOutcome.SUCCESS, result.task(":app:assembleRelease")?.outcome)
+        assertTrue(result.output.contains("credentials not found and signing is not required"))
+    }
+
+    @Test
+    fun `test 18 release build succeeds unsigned with fdroid property without local properties`() {
+        File(testProjectDir, "local.properties").delete()
+
+        val result = runner(
+            ":app:assembleRelease",
+            "-Pfdroid"
+        ).build()
+
+        assertEquals(TaskOutcome.SUCCESS, result.task(":app:assembleRelease")?.outcome)
+        assertTrue(result.output.contains("credentials not found and signing is not required"))
+    }
+
+    @Test
+    fun `test 19 release build succeeds unsigned with DSL extension enabled false`() {
+        File(testProjectDir, "local.properties").delete()
+        val appBuildGradle = File(testProjectDir, "app/build.gradle.kts")
+        appBuildGradle.appendText(
+            """
+            
+            releaseSigning {
+                enabled.set(false)
+            }
+            """.trimIndent()
+        )
+
+        val result = runner(":app:assembleRelease").build()
+
+        assertEquals(TaskOutcome.SUCCESS, result.task(":app:assembleRelease")?.outcome)
+        assertTrue(result.output.contains("[release-signing] Release signing is disabled"))
+    }
+
+    @Test
+    fun `test 20 release build succeeds unsigned with DSL extension required false without credentials`() {
+        File(testProjectDir, "local.properties").delete()
+        val appBuildGradle = File(testProjectDir, "app/build.gradle.kts")
+        appBuildGradle.appendText(
+            """
+            
+            releaseSigning {
+                required.set(false)
+            }
+            """.trimIndent()
+        )
+
+        val result = runner(":app:assembleRelease").build()
+
+        assertEquals(TaskOutcome.SUCCESS, result.task(":app:assembleRelease")?.outcome)
+        assertTrue(result.output.contains("credentials not found and signing is not required"))
+    }
+
+    @Test
+    fun `test 21 release build still signs when DSL required is false but valid credentials are provided`() {
+        val keystoreFile = File(testProjectDir, "keystore/release.jks")
+        createKeystore(keystoreFile)
+
+        File(testProjectDir, "local.properties").writeText(
+            """
+            RELEASE_STORE_FILE=${keystoreFile.absolutePath}
+            RELEASE_STORE_PASSWORD=$validStorePassword
+            RELEASE_KEY_ALIAS=$validKeyAlias
+            RELEASE_KEY_PASSWORD=$validKeyPassword
+            """.trimIndent()
+        )
+
+        val appBuildGradle = File(testProjectDir, "app/build.gradle.kts")
+        appBuildGradle.appendText(
+            """
+            
+            releaseSigning {
+                required.set(false)
+            }
+            """.trimIndent()
+        )
+
+        val result = runner(":app:assembleRelease").build()
+
+        assertEquals(TaskOutcome.SUCCESS, result.task(":app:assembleRelease")?.outcome)
+        assertTrue(result.output.contains("Release signing configuration validated successfully"))
+    }
+
+    @Test
+    fun `test 22 release build fails when DSL required is false but configured keystore does not exist`() {
+        val nonExistentKeystore = File(testProjectDir, "missing/release.jks").absolutePath
+        File(testProjectDir, "local.properties").writeText(
+            """
+            RELEASE_STORE_FILE=$nonExistentKeystore
+            RELEASE_STORE_PASSWORD=$validStorePassword
+            RELEASE_KEY_ALIAS=$validKeyAlias
+            RELEASE_KEY_PASSWORD=$validKeyPassword
+            """.trimIndent()
+        )
+
+        val appBuildGradle = File(testProjectDir, "app/build.gradle.kts")
+        appBuildGradle.appendText(
+            """
+            
+            releaseSigning {
+                required.set(false)
+            }
+            """.trimIndent()
+        )
+
+        val result = runner(":app:assembleRelease").buildAndFail()
+
+        assertTrue(result.output.contains("Release signing configuration is invalid"))
+        assertTrue(result.output.contains("RELEASE_STORE_FILE points to a keystore that does not exist"))
+    }
 }
